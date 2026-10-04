@@ -64,10 +64,11 @@ characters through a small `dec2hex` table.
 ## Why this shape
 
 The implementation is the classic fully-unrolled SHA-256 from Stephan Brumme's
-public-domain code, kept verbatim because it is fast and correct against the
-published vectors. The streaming `add()` / `getHash()` split is what Xapiand needs:
+public-domain code, with a correction to intermediate padding-pointer arithmetic. Published digest vectors remain unchanged. The streaming `add()` / `getHash()` split is what Xapiand needs:
 it hashes content it does not always hold in one contiguous buffer, and it wants a
 stable fingerprint for content-addressing and dedup. The function is used as a
 content digest / checksum, not for authentication, so the design goal is
 throughput and a faithful, well-known digest, not the surrounding machinery of a
 keyed or salted construction.
+
+The padding length pointer is formed as `extra + (paddedLength - BlockSize)`. Subtracting before pointer formation keeps the intermediate pointer within the second block; the original left-associative expression could form an out-of-bounds pointer before returning to the correct address. Digest bytes and public interfaces are unchanged.

@@ -167,8 +167,36 @@ static void test_reuse() {
 }
 
 
+static void test_padding_lengths() {
+	struct Vector { std::size_t length; const char* digest; };
+	const Vector vectors[] = {
+		{55, "9f4390f8d30c2dd92ec9f095b65e2b9ae9b0a925a5258e241c9f1e910f734318"},
+		{56, "b35439a4ac6f0948b6d6f9e3c6af0f5f590ce20f1bde7090ef7970686ec6738a"},
+		{57, "f13b2d724659eb3bf47f2dd6af1accc87b81f09f59f2b75e5c0bed6589dfe8c6"},
+		{63, "7d3e74a05d7db15bce4ad9ec0658ea98e3f06eeecf16b4c6fff2da457ddc2f34"},
+		{64, "ffe054fe7ae0cb6dc65c3af9b61d5209f439851db43d0ba5997337df154668eb"},
+		{65, "635361c48bb9eab14198e76ea8ab7f1a41685d6ad62aa9146d301d4f17eb0ae0"},
+		{119, "31eba51c313a5c08226adf18d4a359cfdfd8d2e816b13f4af952f7ea6584dcfb"},
+		{120, "2f3d335432c70b580af0e8e1b3674a7c020d683aa5f73aaaedfdc55af904c21c"},
+		{121, "e9615320128cc7a3d6078e9af05603188e5ccbf0d07d8b735d3df5e8e0c1281f"},
+		{127, "c57e9278af78fa3cab38667bef4ce29d783787a2f731d4e12200270f0c32320a"},
+		{128, "6836cf13bac400e9105071cd6af47084dfacad4e5e302c94bfed24e013afb73e"},
+		{129, "c12cb024a2e5551cca0e08fce8f1c5e314555cc3fef6329ee994a3db752166ae"},
+	};
+	for (const auto& vector : vectors) {
+		std::string input(vector.length, 'a');
+		SHA256 one;
+		assert(one(std::string_view(input)) == vector.digest);
+		SHA256 streamed;
+		for (char byte : input) streamed.add(&byte, 1);
+		assert(streamed.getHash() == vector.digest);
+		assert(streamed.getHash() == vector.digest);
+	}
+}
+
 int main() {
 	test_known_vectors();
+	test_padding_lengths();
 	test_multi_block();
 	test_block_boundary();
 	test_memory_block();

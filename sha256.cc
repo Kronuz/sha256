@@ -371,7 +371,7 @@ void SHA256::processBuffer()
 	}
 	else
 	{
-		addLength = extra + paddedLength - BlockSize;
+		addLength = extra + (paddedLength - BlockSize);
 	}
 
 	// must be big endian

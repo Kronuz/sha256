@@ -145,10 +145,12 @@ Extracted from [Xapiand](https://github.com/Kronuz/Xapiand). `sha256.h` /
 `sha256.cc` were copied verbatim; the only change was wiring its one local
 include, `"endian.h"`, to the standalone
 [endian](https://github.com/Kronuz/endian) library (`"endian.hh"`) through CMake.
-No other decoupling was needed. See [ARCHITECTURE.md](ARCHITECTURE.md) for the
+The later padding-pointer fix changes no digest bytes or interfaces. See [ARCHITECTURE.md](ARCHITECTURE.md) for the
 design and [AGENTS.md](AGENTS.md) for the repo map and invariants.
 
 ## License
 
 MIT, Copyright (c) 2015-2019 Dubalu LLC; portions Copyright (c) 2014,2015 Stephan
 Brumme. See [LICENSE](LICENSE).
+
+Finalization subtracts the block size before forming the padding length pointer. This preserves digest output while avoiding out-of-bounds intermediate pointer arithmetic for two-block padding. Tests cover lengths 55 through 65 and 119 through 129 around the padding and block boundaries, including one-byte streaming and repeated digest reads.

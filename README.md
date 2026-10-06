@@ -154,3 +154,5 @@ MIT, Copyright (c) 2015-2019 Dubalu LLC; portions Copyright (c) 2014,2015 Stepha
 Brumme. See [LICENSE](LICENSE).
 
 Finalization subtracts the block size before forming the padding length pointer. This preserves digest output while avoiding out-of-bounds intermediate pointer arithmetic for two-block padding. Tests cover lengths 55 through 65 and 119 through 129 around the padding and block boundaries, including one-byte streaming and repeated digest reads.
+
+Caller buffers may start at any byte alignment. Block words are loaded with `memcpy` into a local `uint32_t` before byte swapping, avoiding alignment and object-aliasing undefined behavior. Native and ASan/UBSan tests cover offsets 0 through 15, fixed digest vectors through 4096 bytes, arbitrary chunk boundaries, and digest reads between appends. The Clang `-O3` x86-64 assembly is identical to the previous implementation after excluding the source filename directive; this establishes unchanged generated instructions for that compiler and target, not a measured throughput gain. Digest bytes, public interfaces and class layout are unchanged.

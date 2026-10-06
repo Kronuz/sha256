@@ -72,3 +72,5 @@ throughput and a faithful, well-known digest, not the surrounding machinery of a
 keyed or salted construction.
 
 The padding length pointer is formed as `extra + (paddedLength - BlockSize)`. Subtracting before pointer formation keeps the intermediate pointer within the second block; the original left-associative expression could form an out-of-bounds pointer before returning to the correct address. Digest bytes and public interfaces are unchanged.
+
+Input storage belongs to the caller and can be unaligned or contain byte objects rather than `uint32_t` objects. Each initial word uses a fixed-size `memcpy` into a local integer. The byte-order branch remains the same, and optimizing compilers can fold the copy into the appropriate load. The previous cast and dereference triggered UBSan on a buffer starting one byte after an aligned address; the offset and streaming fixtures preserve this regression.

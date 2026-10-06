@@ -3,3 +3,5 @@ build/
 *.out
 test/test
 test/test_*
+
+.scratch/

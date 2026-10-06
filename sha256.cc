@@ -21,6 +21,7 @@
 #include "sha256.h"
 
 #include "endian.hh"
+#include <cstring>
 
 
 /// same as reset()
@@ -103,16 +104,19 @@ void SHA256::processBlock(const void* data)
 	uint32_t h = m_hash[7];
 
 	// data represented as 16x 32-bit words
-	const uint32_t* input = (uint32_t*) data;
+	const auto* input = static_cast<const unsigned char*>(data);
 	// convert to big endian
 	uint32_t words[64];
 	int i;
 	for (i = 0; i < 16; ++i)
 	{
+		// Caller buffers may be unaligned and need not contain uint32_t objects.
+		uint32_t word;
+		std::memcpy(&word, input + i * sizeof(word), sizeof(word));
 #if __BYTE_ORDER == __BIG_ENDIAN
-		words[i] =      input[i];
+		words[i] =      word;
 #else
-		words[i] = swap(input[i]);
+		words[i] = swap(word);
 #endif
 	}
 

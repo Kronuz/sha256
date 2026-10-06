@@ -9,7 +9,7 @@ easy to fall into.
 
 ```
 sha256.h                     Declares the SHA256 class (call operators, add(), getHash(), reset()). Header. Verbatim from Xapiand.
-sha256.cc                    The compiled compression function, block buffering, and padding. Includes "endian.hh" for the byte-order macros. Extracted from Xapiand with the standalone include and corrected padding-pointer arithmetic.
+sha256.cc                    The compiled compression function, block buffering, and padding. Includes "endian.hh" for the byte-order macros. Extracted from Xapiand with the standalone include and corrected padding-pointer arithmetic and alignment-safe input word loads.
 test/test.cc                 Runnable smoke test: published vectors, multi-block, block boundary, memory block, streaming, raw bytes, reuse.
 examples/demo.cc             A runnable tour (not a test).
 CMakeLists.txt               STATIC library `sha256` (+ alias sha256::sha256); FetchContent endian; CTest test `sha256`.
@@ -99,3 +99,5 @@ copied verbatim; the only change on extraction was resolving the one local
 include, `"endian.h"`, against the standalone endian library as `"endian.hh"`
 through CMake instead of Xapiand's source tree. Digest output is unchanged; padding-pointer arithmetic now subtracts the block size before forming a pointer. Keep it that way; any change here should be reconcilable with
 upstream as a plain edit.
+
+Input pointers have no alignment or integer-object requirement. Keep the fixed-size `memcpy` word loads; casting a byte buffer to `uint32_t*` and dereferencing reintroduces alignment and aliasing undefined behavior. The alignment fixtures cover offsets 0 through 15 and repeated finalization between appends. The fix changes no public layout or digest bytes.

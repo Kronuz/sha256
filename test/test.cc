@@ -7,6 +7,7 @@
 // and reuse of an instance across calls.
 //
 // Build via CMake: cmake -B build && cmake --build build && ctest --test-dir build
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <string>
@@ -194,7 +195,47 @@ static void test_padding_lengths() {
 	}
 }
 
+static void test_unaligned_input() {
+	struct Vector { std::size_t length; const char *digest; };
+	const Vector vectors[] = {
+		{0, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"},
+		{1, "e7cf46a078fed4fafd0b5e3aff144802b853f8ae459a4f0c14add3314b7cc3a6"},
+		{55, "2900465fcb533e05a158fd2b3be0e5e3b03740d83060aa3580e0d98a96bf2384"},
+		{56, "31454ff48ef36af2f08fd511bdc37d9d5855ac23e992e5ff5445cb6b7674a674"},
+		{63, "5f6401b96532c36de4e65beec0409b69b1d181864c8009b7a04f43e5d56350d1"},
+		{64, "94eb5de4943613fd048dc93393ab06877405faa39c11f53e9386083339833e7e"},
+		{65, "fc518669b6eb4b4dd91827ecacef86689c725bd5bab888fd3b26dbb196eec954"},
+		{119, "b0dc41b1a384e2f1203f0351b38fbeaafceef577ce1191d5bfc25da39f721eae"},
+		{120, "5df24dd802ac26132ce608dcb5f09841eef039ee0f152acf98d26d17fe4e88e6"},
+		{127, "0fe729ff19257bd6fec853acc2ea355f6b34b58e6c0f684c3e188fcdfcd9baae"},
+		{128, "0aedd4856f8eba0963627336ad5144a9a7dbe12498e6066f0165fc97d8ddee4c"},
+		{129, "4f1757ae4bffbae86d775b831765b75af154d52f7deaa46dd378051a2d3ad57f"},
+		{1024, "ffbad8f947474cfdd5b2bb22d7e0bf5ee8ba2b7af859d0c2bb28622db6a4be47"},
+		{4096, "4e441a3533bb2c10cd5649981d395744213e09a336746b5a3458fee4057205ec"},
+	};
+	alignas(64) unsigned char storage[4096 + 16]{};
+	for (unsigned offset = 0; offset < 16; ++offset) {
+		for (unsigned i = 0; i < 4096; ++i) storage[offset + i] = static_cast<unsigned char>(i * 37 + 11);
+		for (const auto &v : vectors) {
+			SHA256 one;
+			assert(one(storage + offset, v.length) == v.digest);
+			for (unsigned chunk : {1u, 3u, 63u, 64u, 65u, 129u}) {
+				SHA256 streamed;
+				std::size_t position = 0;
+				while (position < v.length) {
+					auto count = std::min<std::size_t>(chunk, v.length - position);
+					streamed.add(storage + offset + position, count);
+					(void)streamed.getHash(); // Finalization must preserve appendable state.
+					position += count;
+				}
+				assert(streamed.getHash() == v.digest);
+			}
+		}
+	}
+}
+
 int main() {
+	test_unaligned_input();
 	test_known_vectors();
 	test_padding_lengths();
 	test_multi_block();

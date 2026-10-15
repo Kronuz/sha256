@@ -1,5 +1,7 @@
 # sha256
 
+[![CI](https://github.com/Kronuz/sha256/actions/workflows/ci.yml/badge.svg)](https://github.com/Kronuz/sha256/actions/workflows/ci.yml)
+
 A small C++20 utility that turns an arbitrary byte buffer into a fixed 32-byte
 SHA-256 digest, rendered as 64 hex characters. Extracted from
 [Xapiand](https://github.com/Kronuz/Xapiand), where it is used as a fast content

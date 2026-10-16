@@ -1,0 +1,16 @@
+# sha256: bytes in any chunks, 64-byte blocks, a 32-byte digest.
+# Render: d2 --layout elk --sketch --theme 302 docs/sha256.d2 docs/sha256.svg
+direction: right
+
+input: bytes {
+  style.multiple: true
+  label: "add(data, n)\nin any chunks"
+}
+blocks: 64-byte blocks {
+  label: "64-byte blocks\ncompression function"
+}
+digest: digest {
+  label: "getHash()\n64 hex chars or 32 bytes"
+}
+input -> blocks
+blocks -> digest: "padding + length"

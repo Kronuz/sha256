@@ -14,7 +14,8 @@ test/test.cc                 Runnable smoke test: published vectors, multi-block
 examples/demo.cc             A runnable tour (not a test).
 CMakeLists.txt               STATIC library `sha256` (+ alias sha256::sha256); FetchContent endian; CTest test `sha256`.
 LICENSE                      MIT, Copyright (c) 2015-2019 Dubalu LLC; portions (c) 2014,2015 Stephan Brumme.
-README.md                    What it is, install, usage, API.
+README.md                    What it is, install, quick start.
+docs/API.md                  The API reference.
 ARCHITECTURE.md              Internal design: block processing, byte order, padding, finalization.
 ```
 

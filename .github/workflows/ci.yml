@@ -26,6 +26,7 @@ jobs:
         include:
           - { name: linux-x86_64, os: ubuntu-24.04 }
           - { name: linux-arm64, os: ubuntu-24.04-arm }
+          - { name: linux-arm64-clang, os: ubuntu-24.04-arm, cxx: clang++ }
           - { name: macos-arm64, os: macos-15 }
           - { name: macos-x86_64, os: macos-15-intel }
     steps:
@@ -43,6 +44,7 @@ jobs:
       - name: Configure
         run: |
           if [ "$RUNNER_OS" = macOS ]; then export OPENSSL_ROOT_DIR="$(brew --prefix openssl@3)"; fi
+          if [ -n "${{ matrix.cxx }}" ]; then export CXX="${{ matrix.cxx }}"; fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSHA256_BUILD_BENCHMARKS=ON
       - name: Build
         run: cmake --build build --parallel 4

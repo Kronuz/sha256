@@ -125,6 +125,9 @@ int main(int argc, char** argv) {
 #endif
 
 	std::printf("cpu: %s\n", cpu_name().c_str());
+#if defined(__VERSION__)
+	std::printf("compiler: %s\n", __VERSION__);
+#endif
 	std::printf("detected kernel: %s; openssl: %s\n", sha::kernel_name(sha::active_kernel()), evp_version.c_str());
 	std::printf("GB/s, one thread, best of %d, %zu MiB hashed per pass\n\n", reps, total >> 20);
 	std::printf("| %-16s |", "implementation");

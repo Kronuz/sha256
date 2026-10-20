@@ -63,6 +63,14 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   target_link_libraries(sha256_kernels_test PRIVATE sha256)
   add_test(NAME sha256_kernels COMMAND sha256_kernels_test)
 
+  # Next to OpenSSL's headers, and against its SHA256(), when OpenSSL is installed.
+  find_package(OpenSSL QUIET COMPONENTS Crypto)
+  if(OpenSSL_FOUND)
+    add_executable(sha256_openssl_test test/openssl.cc)
+    target_link_libraries(sha256_openssl_test PRIVATE sha256 OpenSSL::Crypto)
+    add_test(NAME sha256_openssl COMMAND sha256_openssl_test)
+  endif()
+
   # libFuzzer target (Clang): cmake -DSHA256_FUZZ=ON -DCMAKE_CXX_COMPILER=clang++
   option(SHA256_FUZZ "Build the libFuzzer target" OFF)
   if(SHA256_FUZZ)
@@ -78,7 +86,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   if(SHA256_BUILD_BENCHMARKS)
     add_executable(sha256_bench bench/bench.cc)
     target_link_libraries(sha256_bench PRIVATE sha256)
-    find_package(OpenSSL COMPONENTS Crypto)
     if(OpenSSL_FOUND)
       target_link_libraries(sha256_bench PRIVATE OpenSSL::Crypto)
       target_compile_definitions(sha256_bench PRIVATE SHA256_BENCH_OPENSSL)

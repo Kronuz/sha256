@@ -20,9 +20,11 @@
 
 #pragma once
 
+#include <array>        // for array
 #include <cstdint>
 #include <stddef.h>     // for size_t
 #include <string>       // for string
+#include <string_view>  // for string_view
 #include <sys/types.h>  // for uint32_t, uint64_t, uint8_t
 
 
@@ -82,3 +84,67 @@ private:
 	/// hash, stored as integers
 	uint32_t m_hash[HashValues];
 };
+
+
+/*
+ * The namespaced API: same digest, no clash with OpenSSL's SHA256() symbol.
+ *
+ *  auto d = kronuz::sha256::digest("abc");          // std::array of 32 bytes
+ *
+ *  kronuz::sha256::hasher h;
+ *  while (more data available)
+ *  	h.update(pointer to fresh data, number of new bytes);
+ *  auto d2 = h.final();                              // state stays appendable
+ *
+ * Every block runs through the fastest kernel the CPU has (SHA-NI on x86_64,
+ * the SHA2 extension on arm64, portable C++ otherwise), picked once at first use.
+ */
+namespace kronuz::sha256 {
+
+inline constexpr std::size_t block_size = 64;
+inline constexpr std::size_t digest_size = 32;
+using digest_type = std::array<unsigned char, digest_size>;
+
+class hasher {
+public:
+	hasher() noexcept { init(); }
+
+	/// restart at the empty message
+	void init() noexcept;
+
+	/// append bytes
+	void update(const void* data, std::size_t size) noexcept;
+	void update(std::string_view text) noexcept { update(text.data(), text.size()); }
+
+	/// digest of everything appended so far; does not end the stream
+	digest_type final() const noexcept;
+	void final(unsigned char out[digest_size]) const noexcept;
+
+private:
+	std::uint32_t state_[8];
+	std::uint64_t length_;  // bytes appended
+	unsigned char buffer_[block_size];
+};
+
+/// one-shot digest
+digest_type digest(const void* data, std::size_t size) noexcept;
+inline digest_type digest(std::string_view text) noexcept { return digest(text.data(), text.size()); }
+
+/// 64 lowercase hex characters
+std::string to_hex(const digest_type& digest);
+
+enum class kernel : unsigned char { portable, sha_ni, armv8 };
+
+/// the kernel that hashes now
+kernel active_kernel() noexcept;
+/// whether this build and CPU can run `k`
+bool kernel_available(kernel k) noexcept;
+/// "portable", "sha-ni" or "armv8"
+const char* kernel_name(kernel k) noexcept;
+
+/// Test and benchmark hook: pin a kernel process-wide; false (and no change)
+/// when it is unavailable. reset_kernel() returns to the detected one.
+bool force_kernel(kernel k) noexcept;
+void reset_kernel() noexcept;
+
+}  // namespace kronuz::sha256

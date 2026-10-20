@@ -53,6 +53,15 @@ int main() {
 	std::printf("  one-shot : %s\n",
 	            oneshot(std::string_view("hello, world")).c_str());
 
+	// --- 4. the namespaced API ------------------------------------------------
+	rule("kronuz::sha256: raw bytes, and the kernel this CPU runs");
+	// Same digest, returned as 32 bytes; no name clash with OpenSSL's SHA256().
+	// Blocks go through SHA-NI or the ARMv8 SHA2 instructions when present.
+	auto digest = kronuz::sha256::digest("hello, world");
+	std::printf("  digest   : %s\n", kronuz::sha256::to_hex(digest).c_str());
+	std::printf("  kernel   : %s\n",
+	            kronuz::sha256::kernel_name(kronuz::sha256::active_kernel()));
+
 	std::puts("\ndone.");
 	return 0;
 }

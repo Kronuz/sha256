@@ -20,7 +20,10 @@
 
 #include "sha256.h"
 
+#include "sha256_kernels.hh"
+
 #include "endian.hh"
+#include <atomic>
 #include <cstring>
 
 
@@ -90,8 +93,10 @@ namespace
 }
 
 
+namespace
+{
 /// process 64 bytes
-void SHA256::processBlock(const void* data)
+inline void compressBlock(uint32_t m_hash[8], const void* data)
 {
 	// get last hash
 	uint32_t a = m_hash[0];
@@ -266,135 +271,39 @@ void SHA256::processBlock(const void* data)
 	m_hash[6] += g;
 	m_hash[7] += h;
 }
+}
+
+
+/// the portable kernel: process `blocks` consecutive 64-byte blocks
+void kronuz::sha256::detail::compress_portable(uint32_t state[8], const unsigned char* data, size_t blocks) noexcept
+{
+	for (; blocks > 0; --blocks, data += 64)
+	{
+		compressBlock(state, data);
+	}
+}
+
+
+/// process 64 bytes
+void SHA256::processBlock(const void* data)
+{
+	kronuz::sha256::detail::compress()(m_hash, static_cast<const unsigned char*>(data), 1);
+}
 
 
 /// add arbitrary number of bytes
 void SHA256::add(const void* data, size_t numBytes)
 {
-	const auto* current = (const uint8_t*) data;
-
-	if (m_bufferSize > 0)
-	{
-		while (numBytes > 0 && m_bufferSize < BlockSize)
-		{
-			m_buffer[m_bufferSize++] = *current++;
-			--numBytes;
-		}
-	}
-
-	// full buffer
-	if (m_bufferSize == BlockSize)
-	{
-		processBlock(m_buffer);
-		m_numBytes  += BlockSize;
-		m_bufferSize = 0;
-	}
-
-	// no more data ?
-	if (numBytes == 0)
-	{
-		return;
-	}
-
-	// process full blocks
-	while (numBytes >= BlockSize)
-	{
-		processBlock(current);
-		current    += BlockSize;
-		m_numBytes += BlockSize;
-		numBytes   -= BlockSize;
-	}
-
-	// keep remaining bytes in buffer
-	while (numBytes > 0)
-	{
-		m_buffer[m_bufferSize++] = *current++;
-		--numBytes;
-	}
+	const size_t before = m_bufferSize;
+	kronuz::sha256::detail::absorb(m_hash, m_buffer, m_bufferSize, static_cast<const unsigned char*>(data), numBytes);
+	m_numBytes += before + numBytes - m_bufferSize;
 }
 
 
 /// process final block, less than 64 bytes
 void SHA256::processBuffer()
 {
-	// the input bytes are considered as bits strings, where the first bit is the most significant bit of the byte
-
-	// - append "1" bit to message
-	// - append "0" bits until message length in bit mod 512 is 448
-	// - append length as 64 bit integer
-
-	// number of bits
-	size_t paddedLength = m_bufferSize * 8;
-
-	// plus one bit set to 1 (always appended)
-	++paddedLength;
-
-	// number of bits must be (numBits % 512) = 448
-	size_t lower11Bits = paddedLength & 511;
-	if (lower11Bits <= 448)
-	{
-		paddedLength +=       448 - lower11Bits;
-	}
-	else
-	{
-		paddedLength += 512 + 448 - lower11Bits;
-	}
-	// convert from bits to bytes
-	paddedLength /= 8;
-
-	// only needed if additional data flows over into a second block
-	unsigned char extra[BlockSize];
-
-	// append a "1" bit, 128 => binary 10000000
-	if (m_bufferSize < BlockSize)
-	{
-		m_buffer[m_bufferSize] = 128;
-	}
-	else
-	{
-		extra[0] = 128;
-	}
-
-	size_t i;
-	for (i = m_bufferSize + 1; i < BlockSize; ++i)
-	{
-		m_buffer[i] = 0;
-	}
-	for (; i < paddedLength; ++i)
-	{
-		extra[i - BlockSize] = 0;
-	}
-
-	// add message length in bits as 64 bit number
-	uint64_t msgBits = 8 * (m_numBytes + m_bufferSize);
-	// find right position
-	unsigned char* addLength;
-	if (paddedLength < BlockSize)
-	{
-		addLength = m_buffer + paddedLength;
-	}
-	else
-	{
-		addLength = extra + (paddedLength - BlockSize);
-	}
-
-	// must be big endian
-	*addLength++ = (unsigned char)((msgBits >> 56) & 0xFF);
-	*addLength++ = (unsigned char)((msgBits >> 48) & 0xFF);
-	*addLength++ = (unsigned char)((msgBits >> 40) & 0xFF);
-	*addLength++ = (unsigned char)((msgBits >> 32) & 0xFF);
-	*addLength++ = (unsigned char)((msgBits >> 24) & 0xFF);
-	*addLength++ = (unsigned char)((msgBits >> 16) & 0xFF);
-	*addLength++ = (unsigned char)((msgBits >>  8) & 0xFF);
-	*addLength   = (unsigned char)( msgBits        & 0xFF);
-
-	// process blocks
-	processBlock(m_buffer);
-	// flowed over into a second block ?
-	if (paddedLength > BlockSize)
-	{
-		processBlock(extra);
-	}
+	kronuz::sha256::detail::finish(m_hash, m_buffer, m_bufferSize, m_numBytes + m_bufferSize);
 }
 
 
@@ -462,3 +371,234 @@ std::string SHA256::operator()(std::string_view text)
 	add(text.data(), text.size());
 	return getHash();
 }
+
+
+namespace kronuz::sha256 {
+
+namespace detail {
+
+void absorb(uint32_t state[8], unsigned char buffer[64], size_t& buffered, const unsigned char* data, size_t size) noexcept
+{
+	if (size == 0)
+	{
+		return;
+	}
+	const compress_fn fn = compress();
+	if (buffered > 0)
+	{
+		size_t take = 64 - buffered < size ? 64 - buffered : size;
+		std::memcpy(buffer + buffered, data, take);
+		buffered += take;
+		data += take;
+		size -= take;
+		if (buffered < 64)
+		{
+			return;
+		}
+		fn(state, buffer, 1);
+		buffered = 0;
+	}
+	if (size_t blocks = size / 64)
+	{
+		fn(state, data, blocks);
+		data += blocks * 64;
+		size -= blocks * 64;
+	}
+	if (size > 0)
+	{
+		std::memcpy(buffer, data, size);
+		buffered = size;
+	}
+}
+
+
+void finish(uint32_t state[8], const unsigned char* buffer, size_t buffered, uint64_t total) noexcept
+{
+	// 0x80, zeros to 56 mod 64, then the bit length big-endian: one block or two.
+	unsigned char tail[128];
+	std::memcpy(tail, buffer, buffered);
+	tail[buffered] = 0x80;
+	const size_t padded = buffered < 56 ? 64 : 128;
+	std::memset(tail + buffered + 1, 0, padded - 8 - buffered - 1);
+	const uint64_t bits = total * 8;
+	for (int i = 0; i < 8; ++i)
+	{
+		tail[padded - 1 - i] = static_cast<unsigned char>(bits >> (8 * i));
+	}
+	compress()(state, tail, padded / 64);
+}
+
+
+namespace {
+
+compress_fn kernel_fn(kernel k) noexcept
+{
+	switch (k)
+	{
+#if defined(SHA256_HAVE_SHANI)
+		case kernel::sha_ni:
+			return shani_supported() ? compress_shani : nullptr;
+#endif
+#if defined(SHA256_HAVE_ARMV8)
+		case kernel::armv8:
+			return armv8_supported() ? compress_armv8 : nullptr;
+#endif
+		case kernel::portable:
+			return compress_portable;
+		default:
+			return nullptr;
+	}
+}
+
+compress_fn detect() noexcept
+{
+	for (kernel k : {kernel::sha_ni, kernel::armv8})
+	{
+		if (compress_fn fn = kernel_fn(k))
+		{
+			return fn;
+		}
+	}
+	return compress_portable;
+}
+
+// Null until first use; every kernel computes the same function, so a racing
+// first store or a force mid-stream is harmless.
+std::atomic<compress_fn> active{nullptr};
+
+}  // namespace
+
+
+compress_fn compress() noexcept
+{
+	compress_fn fn = active.load(std::memory_order_relaxed);
+	if (fn == nullptr)
+	{
+		fn = detect();
+		active.store(fn, std::memory_order_relaxed);
+	}
+	return fn;
+}
+
+}  // namespace detail
+
+
+void hasher::init() noexcept
+{
+	static constexpr uint32_t initial[8] = {
+		0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+	};
+	std::memcpy(state_, initial, sizeof(state_));
+	length_ = 0;
+}
+
+
+void hasher::update(const void* data, size_t size) noexcept
+{
+	size_t buffered = static_cast<size_t>(length_ % block_size);
+	detail::absorb(state_, buffer_, buffered, static_cast<const unsigned char*>(data), size);
+	length_ += size;
+}
+
+
+void hasher::final(unsigned char out[digest_size]) const noexcept
+{
+	uint32_t state[8];
+	std::memcpy(state, state_, sizeof(state));
+	detail::finish(state, buffer_, static_cast<size_t>(length_ % block_size), length_);
+	for (int i = 0; i < 8; ++i)
+	{
+		out[4 * i + 0] = static_cast<unsigned char>(state[i] >> 24);
+		out[4 * i + 1] = static_cast<unsigned char>(state[i] >> 16);
+		out[4 * i + 2] = static_cast<unsigned char>(state[i] >> 8);
+		out[4 * i + 3] = static_cast<unsigned char>(state[i]);
+	}
+}
+
+
+digest_type hasher::final() const noexcept
+{
+	digest_type out;
+	final(out.data());
+	return out;
+}
+
+
+digest_type digest(const void* data, size_t size) noexcept
+{
+	hasher h;
+	h.update(data, size);
+	return h.final();
+}
+
+
+std::string to_hex(const digest_type& digest)
+{
+	static const char dec2hex[16 + 1] = "0123456789abcdef";
+	std::string result;
+	result.reserve(2 * digest.size());
+	for (unsigned char byte : digest)
+	{
+		result += dec2hex[byte >> 4];
+		result += dec2hex[byte & 15];
+	}
+	return result;
+}
+
+
+kernel active_kernel() noexcept
+{
+	const detail::compress_fn fn = detail::compress();
+#if defined(SHA256_HAVE_SHANI)
+	if (fn == detail::compress_shani)
+	{
+		return kernel::sha_ni;
+	}
+#endif
+#if defined(SHA256_HAVE_ARMV8)
+	if (fn == detail::compress_armv8)
+	{
+		return kernel::armv8;
+	}
+#endif
+	(void)fn;
+	return kernel::portable;
+}
+
+
+bool kernel_available(kernel k) noexcept
+{
+	return detail::kernel_fn(k) != nullptr;
+}
+
+
+const char* kernel_name(kernel k) noexcept
+{
+	switch (k)
+	{
+		case kernel::portable: return "portable";
+		case kernel::sha_ni: return "sha-ni";
+		case kernel::armv8: return "armv8";
+	}
+	return "unknown";
+}
+
+
+bool force_kernel(kernel k) noexcept
+{
+	detail::compress_fn fn = detail::kernel_fn(k);
+	if (fn == nullptr)
+	{
+		return false;
+	}
+	detail::active.store(fn, std::memory_order_relaxed);
+	return true;
+}
+
+
+void reset_kernel() noexcept
+{
+	detail::active.store(detail::detect(), std::memory_order_relaxed);
+}
+
+}  // namespace kronuz::sha256

@@ -28,6 +28,12 @@
 #  include <windows.h>
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#  define SHA256_SEPARATE(v) __asm__("" : "+w"(v))
+#else
+#  define SHA256_SEPARATE(v) ((void)0)
+#endif
+
 namespace kronuz::sha256::detail {
 
 bool armv8_supported() noexcept
@@ -66,10 +72,12 @@ void compress_armv8(std::uint32_t state[8], const unsigned char* data, std::size
 		const uint32x4_t efgh = s1;
 		uint32x4_t w0, w1, w2, w3, m, t;
 
-		// Four rounds on message group w (words 4g..4g+3).
+		// Four rounds on message group w (words 4g..4g+3). The copy of ABCD feeds
+		// only sha256h2, so sha256h updates s0 in place, off the copy's latency.
 #define SHA256_ROUNDS(g, w)                              \
 	m = vaddq_u32(w, vld1q_u32(&round_constants[4 * (g)])); \
 	t = s0;                                              \
+	SHA256_SEPARATE(t);                                  \
 	s0 = vsha256hq_u32(s0, s1, m);                       \
 	s1 = vsha256h2q_u32(s1, t, m)
 

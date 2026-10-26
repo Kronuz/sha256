@@ -76,6 +76,8 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   if(SHA256_FUZZ)
     add_executable(sha256_fuzz fuzz/fuzz_stream.cc)
     target_link_libraries(sha256_fuzz PRIVATE sha256)
+    # the kernels are compiled in the library, so it needs coverage and the sanitizers too
+    target_compile_options(sha256 PRIVATE -fsanitize=fuzzer-no-link,address,undefined -fno-sanitize-recover=all)
     target_compile_options(sha256_fuzz PRIVATE -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=all)
     target_link_options(sha256_fuzz PRIVATE -fsanitize=fuzzer,address,undefined)
   endif()

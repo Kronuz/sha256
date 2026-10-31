@@ -234,6 +234,45 @@ static void test_unaligned_input() {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Differential check of the hex string against a frozen copy of the original
+// byte-at-a-time conversion, for every length up to 300 (all padding shapes),
+// plus streaming getHash() then continued add().
+// ---------------------------------------------------------------------------
+
+static std::string old_hex(const unsigned char* raw, size_t n) {
+	std::string result;
+	result.reserve(2 * n);
+	for (size_t k = 0; k < n; ++k) {
+		static const char dec2hex[16+1] = "0123456789abcdef";
+		result += dec2hex[(raw[k] >> 4) & 15];
+		result += dec2hex[ raw[k]       & 15];
+	}
+	return result;
+}
+
+static void test_hex_matches_old() {
+	unsigned state = 12345;
+	std::string data;
+	for (size_t len = 0; len <= 300; ++len) {
+		SHA256 h, g;
+		std::string hex = h(data.data(), data.size());
+		unsigned char raw[SHA256::HashBytes];
+		g.add(data.data(), data.size());
+		g.getHash(raw);
+		assert(hex == old_hex(raw, SHA256::HashBytes));
+		assert(hex.size() == 2 * SHA256::HashBytes);
+		// getHash() leaves the stream appendable.
+		g.add("tail", 4);
+		SHA256 ref;
+		assert(g.getHash() == ref(data + "tail"));
+		state = state * 1664525u + 1013904223u;
+		data.push_back(static_cast<char>(state >> 24));
+	}
+	std::printf("sha256 hex matches the frozen byte-at-a-time conversion for lengths 0..300\n");
+}
+
+
 int main() {
 	test_unaligned_input();
 	test_known_vectors();
@@ -244,6 +283,7 @@ int main() {
 	test_streaming();
 	test_raw_bytes();
 	test_reuse();
+	test_hex_matches_old();
 	std::printf("all sha256 tests passed\n");
 	return 0;
 }

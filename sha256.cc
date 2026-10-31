@@ -308,6 +308,22 @@ void SHA256::processBuffer()
 }
 
 
+/// lowercase hex of `n` bytes: the string is sized once and filled through a
+/// pointer, two characters per byte
+static std::string hex_string(const unsigned char* bytes, size_t n)
+{
+	static const char dec2hex[16 + 1] = "0123456789abcdef";
+	std::string result(2 * n, '\0');
+	char* out = result.data();
+	for (size_t i = 0; i < n; ++i)
+	{
+		out[2 * i]     = dec2hex[bytes[i] >> 4];
+		out[2 * i + 1] = dec2hex[bytes[i] & 15];
+	}
+	return result;
+}
+
+
 /// return latest hash as 64 hex characters
 std::string SHA256::getHash()
 {
@@ -315,17 +331,8 @@ std::string SHA256::getHash()
 	unsigned char rawHash[HashBytes];
 	getHash(rawHash);
 
-	// convert to hex string
-	std::string result;
-	result.reserve(2 * HashBytes);
-	for (unsigned char i : rawHash)
-	{
-		static const char dec2hex[16+1] = "0123456789abcdef";
-		result += dec2hex[(i >> 4) & 15];
-		result += dec2hex[ i       & 15];
-	}
-
-	return result;
+	// convert to hex string: size once, write two characters per byte
+	return hex_string(rawHash, HashBytes);
 }
 
 
@@ -535,15 +542,7 @@ digest_type digest(const void* data, size_t size) noexcept
 
 std::string to_hex(const digest_type& digest)
 {
-	static const char dec2hex[16 + 1] = "0123456789abcdef";
-	std::string result;
-	result.reserve(2 * digest.size());
-	for (unsigned char byte : digest)
-	{
-		result += dec2hex[byte >> 4];
-		result += dec2hex[byte & 15];
-	}
-	return result;
+	return hex_string(reinterpret_cast<const unsigned char*>(digest.data()), digest.size());
 }
 
 

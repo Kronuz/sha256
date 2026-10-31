@@ -135,6 +135,13 @@ CI's `bench-*` jobs print the same table, with the runner's CPU, on every manual
 The runner figures above come from run 39356786780 (commit 681593b) and, for the
 Xeon row, run 39356305207 (commit 15ac8f3, the same x86 kernel).
 
+## ⚡ Performance note
+
+The legacy `SHA256` class and `kronuz::sha256::to_hex` build the 64-character hex string in one sized buffer, two
+characters per byte, instead of appending one character at a time: `SHA256(16 B)` went from about 252 ns to 60 ns
+(Apple M4 Pro, -O3); the SHA2-extension kernel itself is unchanged. `bench/hex_bench.cc` (with
+`-DSHA256_BUILD_BENCHMARKS=ON`).
+
 ## 📚 Documentation
 
 - [docs/API.md](docs/API.md): the `SHA256` class and `kronuz::sha256`.

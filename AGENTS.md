@@ -8,9 +8,9 @@ easy to fall into.
 ## Repo map
 
 ```
-sha256.h                     The SHA256 class (as extracted from Xapiand) and the kronuz::sha256 API: hasher, digest(), to_hex(), the kernel queries and the force_kernel()/reset_kernel() hook.
+sha256.h                     The SHA256 class (Xapiand's interface) and the kronuz::sha256 API: hasher, digest(), to_hex(), the kernel queries and the force_kernel()/reset_kernel() hook.
 sha256_kernels.hh            Internal: kernel signature, round constants, compress() dispatch, absorb()/finish(). Not for consumers.
-sha256.cc                    Portable kernel (the original round function), shared buffering and padding, dispatch, both front ends. Includes "endian.hh" for the byte-order macros.
+sha256.cc                    Portable kernel (Xapiand's round function), shared buffering and padding, dispatch, both front ends. Includes "endian.hh" for the byte-order macros.
 sha256_x86.cc                SHA-NI kernel and CPUID check; empty unless x86_64.
 sha256_arm.cc                ARMv8 SHA2 kernel and HWCAP/sysctl check; empty unless arm64.
 test/test.cc                 The SHA256 class: published vectors, multi-block, block boundary, memory block, streaming, raw bytes, reuse, padding lengths, unaligned input.
@@ -18,12 +18,15 @@ test/kernels.cc              Every kernel the host has, forced in turn: NIST vec
 test/openssl.cc              Built when OpenSSL is found: one TU with <openssl/sha.h>, every kernel vs OpenSSL's SHA256().
 fuzz/fuzz_stream.cc          libFuzzer: input-chosen chunking through every kernel and both APIs.
 bench/bench.cc               GB/s per kernel and OpenSSL EVP at 64 B, 4 KiB, 64 MiB.
+bench/hex_bench.cc           ns per SHA256(data) call with its 64-character hex string (sha256_hex_bench).
 examples/demo.cc             A runnable tour (not a test).
 CMakeLists.txt               STATIC library `sha256` (+ alias sha256::sha256); FetchContent endian; CTest tests `sha256`, `sha256_kernels`, `sha256_openssl` (when OpenSSL is found); options SHA256_HARDWARE, SHA256_FUZZ, SHA256_BUILD_BENCHMARKS.
 LICENSE                      MIT, Copyright (c) 2015-2019 Dubalu LLC; portions (c) 2014,2015 Stephan Brumme.
 README.md                    What it is, install, quick start.
 docs/API.md                  The API reference.
 ARCHITECTURE.md              Internal design: block processing, byte order, padding, finalization.
+CHANGELOG.md                 Behavior and performance changes, newest first.
+docs/status/cl-10.md         Status ledger of the hardware-kernel work (a record; not reshaped).
 ```
 
 This is not header-only. The three `.cc` files must be compiled and linked; the header
@@ -58,9 +61,9 @@ consumers vendoring it via `FetchContent` won't build them.
 `sha256.cc` includes `"endian.hh"` for the byte-order macros (`__BYTE_ORDER`,
 `__LITTLE_ENDIAN`, `__BIG_ENDIAN`) used to read 32-bit words big-endian. That
 header lives in the sibling [endian](https://github.com/Kronuz/endian) library,
-pulled in by CMake and linked `PUBLIC` so the include path resolves. We track its
-tip with `GIT_TAG main`, like the rest of the family. This is the library's only
-dependency: there was no `log.h` / opts / config / THROW coupling in the original.
+pulled in by CMake at a pinned commit and linked `PUBLIC` so the include path
+resolves. This is the library's only dependency: there is no `log.h` / opts /
+config / THROW coupling.
 
 ## What this is for
 
@@ -102,11 +105,11 @@ guarantees; it is the fast, stable fingerprint Xapiand reaches for.
   returns anything else. Never call `compress_shani`/`compress_armv8` directly.
 - **Detection runs once.** `compress()` is one relaxed atomic load; don't put
   CPUID or `getauxval` on the per-update path.
-- **The portable round function's text is unchanged** from the extraction (only
-  `m_hash` became a parameter, as `compressBlock`); it is the reference the other
-  kernels are tested against.
+- **The portable round function's text matches Xapiand's**, with `m_hash` as a
+  parameter (`compressBlock`); it is the reference the other kernels are tested
+  against.
 - **The SHA256 class's layout and behaviour are frozen** (C1 of the consolidation
-  audit): same members, same digests, `getHash()` still restores the state.
+  audit): Xapiand's members and digests, and `getHash()` restores the state.
 - **Words are loaded big-endian.** On a little-endian host each 32-bit word is
   byte-swapped on load; on big-endian it is a no-op. The branch is compile-time
   from `__BYTE_ORDER`. Don't drop the swap or you'll corrupt the digest on x86.
@@ -138,9 +141,10 @@ guarantees; it is the fast, stable fingerprint Xapiand reaches for.
 
 This is a standalone extraction from
 [Xapiand](https://github.com/Kronuz/Xapiand). The `SHA256` class in `sha256.h` and
-the round function in `sha256.cc` were copied verbatim; the only change on extraction was resolving the one local
-include, `"endian.h"`, against the standalone endian library as `"endian.hh"`
-through CMake instead of Xapiand's source tree. Digest output is unchanged; padding-pointer arithmetic now subtracts the block size before forming a pointer. Keep it that way; any change here should be reconcilable with
-upstream as a plain edit.
+the round function in `sha256.cc` match upstream's interface and digests. The one
+local include, Xapiand's `"endian.h"`, resolves against the standalone endian
+library as `"endian.hh"` through CMake. Padding writes only into `finish()`'s
+scratch block, and the hex string is built in one sized buffer. Keep any change
+here reconcilable with upstream as a plain edit.
 
-Input pointers have no alignment or integer-object requirement. Keep the fixed-size `memcpy` word loads in the portable kernel and unaligned vector loads in the others; casting a byte buffer to `uint32_t*` and dereferencing reintroduces alignment and aliasing undefined behavior. The alignment fixtures cover offsets 0 through 15 and repeated finalization between appends. The fix changes no public layout or digest bytes.
+Input pointers have no alignment or integer-object requirement. Keep the fixed-size `memcpy` word loads in the portable kernel and unaligned vector loads in the others; casting a byte buffer to `uint32_t*` and dereferencing reintroduces alignment and aliasing undefined behavior. The alignment fixtures cover offsets 0 through 15 and repeated finalization between appends.

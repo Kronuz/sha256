@@ -17,7 +17,7 @@ A public header, an internal one, and three compiled files:
   sha256_arm.cc      the ARMv8 SHA2 kernel and its feature check (arm64 only)
 ```
 
-Two front ends share one mechanism. `SHA256` keeps its original members: the eight
+Two front ends share one mechanism. `SHA256` holds Xapiand's members: the eight
 32-bit hash words, a 64-byte block buffer, the number of valid bytes in it, and the
 bytes already compressed. `kronuz::sha256::hasher` keeps the eight words, the buffer,
 and one total length (the buffered count is the length mod 64). Both call the same
@@ -34,7 +34,7 @@ hashing the whole thing at once. One call per run of blocks lets a hardware kern
 keep the state in vector registers across the run.
 
 A kernel is `void(uint32_t state[8], const unsigned char* data, size_t blocks)`. The
-portable one is the original round function: it loads the 16 input words,
+portable one is Xapiand's round function: it loads the 16 input words,
 big-endian, runs the 64 rounds (the eight unrolled round groups, with the message
 schedule extended in place from 16 to 64 words), and folds the result into the
 eight hash words, once per block.
@@ -98,19 +98,18 @@ small `dec2hex` table.
 ## Why this shape
 
 The portable kernel is the classic fully-unrolled SHA-256 from Stephan Brumme's
-public-domain code, with a correction to intermediate padding-pointer arithmetic. Published digest vectors remain unchanged. The streaming `add()` / `getHash()` split is what Xapiand needs:
+public-domain code. The streaming `add()` / `getHash()` split is what Xapiand needs:
 it hashes content it does not always hold in one contiguous buffer, and it wants a
 stable fingerprint for content-addressing and dedup. The function is used as a
 content digest / checksum, not for authentication, so the design goal is
 throughput and a faithful, well-known digest, not the surrounding machinery of a
 keyed or salted construction.
 
-The hardware kernels exist because consumers were bypassing this library for
-OpenSSL's EVP on bulk data (CL-10 of the 2026-10-19 consolidation audit). Runtime
-dispatch, rather than a compile-time choice, keeps one binary correct on CPUs with
+The hardware kernels give bulk data the throughput of OpenSSL's EVP without
+linking OpenSSL. Runtime dispatch, rather than a compile-time choice, keeps one binary correct on CPUs with
 and without the instructions, and the namespaced API lets a file that includes
 OpenSSL's headers use this library too.
 
 Padding writes only into `finish()`'s fixed 128-byte scratch block at offsets computed from the buffered count, so no intermediate pointer leaves it; the caller's buffer and the class's own are read, never padded in place.
 
-Input storage belongs to the caller and can be unaligned or contain byte objects rather than `uint32_t` objects. The portable kernel loads each initial word with a fixed-size `memcpy` into a local integer; the hardware kernels use unaligned vector loads (`_mm_loadu_si128`, `vld1q_u8`). The byte-order branch remains the same, and optimizing compilers can fold the copy into the appropriate load. The previous cast and dereference triggered UBSan on a buffer starting one byte after an aligned address; the offset and streaming fixtures preserve this regression.
+Input storage belongs to the caller and can be unaligned or contain byte objects rather than `uint32_t` objects. The portable kernel loads each initial word with a fixed-size `memcpy` into a local integer; the hardware kernels use unaligned vector loads (`_mm_loadu_si128`, `vld1q_u8`). Optimizing compilers fold the copy into the appropriate load. The offset and streaming fixtures hash buffers that start one to fifteen bytes past an aligned address, under UBSan.

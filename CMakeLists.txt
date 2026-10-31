@@ -7,8 +7,7 @@ include(FetchContent)
 # sha256.cc includes "endian.hh" for the byte-order macros (__BYTE_ORDER,
 # __LITTLE_ENDIAN, __BIG_ENDIAN) and __builtin_bswap32 plumbing it uses to read
 # 32-bit words big-endian. That header lives in the sibling endian library,
-# pulled in here so the include resolves. We track its tip with GIT_TAG main,
-# like the rest of the family.
+# pulled in here at a pinned commit so the include resolves.
 FetchContent_Declare(
   endian
   GIT_REPOSITORY https://github.com/Kronuz/endian.git

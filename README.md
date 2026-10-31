@@ -17,7 +17,7 @@ integrity checks.
 ## ✨ Highlights
 
 - **One call or streaming.** `kronuz::sha256::digest("abc")`, or `update()` chunks
-  and `final()`; the original `SHA256` class (`add()`, `getHash()`) is unchanged.
+  and `final()`; the `SHA256` class (`add()`, `getHash()`) keeps Xapiand's interface.
 - **Hardware speed, one binary.** SHA-NI and ARMv8 kernels are detected once at
   first use; on the CI runners below they run within 1% of OpenSSL EVP on bulk
   data (6% behind with GCC on Neoverse-N2) and ahead of it on 64-byte messages.
@@ -67,7 +67,7 @@ int main() {
 	std::puts(sha::to_hex(h.final()).c_str());   // same as hashing "hello, world" at once
 	std::puts(sha::kernel_name(sha::active_kernel()));   // "sha-ni", "armv8" or "portable"
 
-	SHA256 sha256;                           // the original class, same digests
+	SHA256 sha256;                           // the Xapiand-compatible class, same digests
 	std::puts(sha256(std::string_view("abc")).c_str());
 }
 ```
@@ -135,12 +135,10 @@ CI's `bench-*` jobs print the same table, with the runner's CPU, on every manual
 The runner figures above come from run 39356786780 (commit 681593b) and, for the
 Xeon row, run 39356305207 (commit 15ac8f3, the same x86 kernel).
 
-## ⚡ Performance note
-
-The legacy `SHA256` class and `kronuz::sha256::to_hex` build the 64-character hex string in one sized buffer, two
-characters per byte, instead of appending one character at a time: `SHA256(16 B)` went from about 252 ns to 60 ns
-(Apple M4 Pro, -O3); the SHA2-extension kernel itself is unchanged. `bench/hex_bench.cc` (with
-`-DSHA256_BUILD_BENCHMARKS=ON`).
+The `SHA256` class and `kronuz::sha256::to_hex` build the 64-character hex string
+in one sized buffer, two characters per byte. `SHA256` on a 16-byte input, hex
+string included, takes about 60 ns on an Apple M4 Pro (-O3); `sha256_hex_bench`
+(`bench/hex_bench.cc`, built by the same option) measures it.
 
 ## 📚 Documentation
 
@@ -148,6 +146,7 @@ characters per byte, instead of appending one character at a time: `SHA256(16 B)
 - [ARCHITECTURE.md](ARCHITECTURE.md): buffering, the kernels and their dispatch,
   and finalization.
 - [AGENTS.md](AGENTS.md): repository map and invariants.
+- [CHANGELOG.md](CHANGELOG.md): behavior and performance changes.
 
 ## 🛠️ Building and testing
 

@@ -106,9 +106,11 @@ whose kernels are the ones in this tree, so a few percent is noise.
 |---|---|---|---:|---:|---:|---:|
 | Apple M4 Pro, Apple clang 17, [3.5.9](https://github.com/openssl/openssl/tree/openssl-3.5.9) | armv8 | 64 B | 1.783 | 0.246 | 1.519 | 1.17 |
 | | | 64 MiB | 2.980 | 0.506 | 3.012 | 0.99 |
+| Intel Core i9-9980HK (no SHA-NI), Apple clang 17, [3.6.5](https://github.com/openssl/openssl/tree/openssl-3.6.5) | portable | 64 B | 0.114 | 0.114 | 0.187 | 0.61 |
+| | | 64 MiB | 0.234 | 0.234 | 0.513 | 0.46 |
 | AMD EPYC 7763, GCC 13.3, [3.0.13](https://github.com/openssl/openssl/tree/openssl-3.0.13) | sha-ni | 64 B | 0.531 | 0.114 | 0.417 | 1.27 |
 | | | 64 MiB | 1.586 | 0.258 | 1.587 | 1.00 |
-| Neoverse-N2, Clang 18.1, 3.0.13 | armv8 | 64 B | 1.082 | 0.194 | 0.464 | 2.33 |
+| Neoverse-N2, Clang 18.1, [3.0.13](https://github.com/openssl/openssl/tree/openssl-3.0.13) | armv8 | 64 B | 1.082 | 0.194 | 0.464 | 2.33 |
 | | | 64 MiB | 2.167 | 0.408 | 2.166 | 1.00 |
 | Intel Core i7-8700B (no SHA-NI), Apple clang 17, [3.6.3](https://github.com/openssl/openssl/tree/openssl-3.6.3) | portable | 64 B | 0.082 | 0.082 | 0.131 | 0.63 |
 | | | 64 MiB | 0.175 | 0.175 | 0.360 | 0.49 |
@@ -116,7 +118,7 @@ whose kernels are the ones in this tree, so a few percent is noise.
 On SHA-NI and ARMv8 the hardware kernel is 5.3x to 9.5x faster than the portable one on 64 MiB,
 within about 1% of EVP on bulk data (4.5% ahead on the M1 runner, 6% behind with GCC on
 Neoverse-N2) and 1.2x to 2.3x faster on 64-byte messages, where EVP's per-call overhead dominates. A CPU without SHA instructions
-runs the portable kernel, and there EVP's vectorized assembly is 1.6x to 2.1x faster. [docs/perf/](docs/perf/README.md)
+runs the portable kernel, and there EVP's vectorized assembly is 1.6x to 2.2x faster. [docs/perf/](docs/perf/README.md)
 has 4 KiB messages and the other runners.
 
 ```sh

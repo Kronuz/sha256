@@ -13,16 +13,22 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DSHA256_BUILD_BENCHMARKS=ON
 cmake --build build && ./build/sha256_bench
 ```
 
-## Laptop
+## Laptops
 
-Apple M4 Pro, macOS 26, Apple clang 17.0.0 (clang-1700.3.19.1), `-O3`, linked with Homebrew's
-`openssl@3` 3.5.9 ([openssl-3.5.9](https://github.com/openssl/openssl/tree/openssl-3.5.9)).
+Apple M4 Pro, macOS 26, Apple clang 17, `-O3`, linked with Homebrew's `openssl@3` 3.5.9 ([openssl-3.5.9](https://github.com/openssl/openssl/tree/openssl-3.5.9)).
 
 | Implementation | 64 B | 4 KiB | 64 MiB |
 |---|---:|---:|---:|
 | sha256 portable | 0.246 | 0.503 | 0.506 |
 | sha256 armv8 | 1.783 | 2.955 | 2.980 |
 | OpenSSL EVP | 1.519 | 2.972 | 3.012 |
+
+Intel Core i9-9980HK (no SHA-NI), macOS 15, Apple clang 17, `-O3`, linked with Homebrew's `openssl@3` 3.6.5 ([openssl-3.6.5](https://github.com/openssl/openssl/tree/openssl-3.6.5)).
+
+| Implementation | 64 B | 4 KiB | 64 MiB |
+|---|---:|---:|---:|
+| sha256 portable | 0.114 | 0.233 | 0.234 |
+| OpenSSL EVP | 0.187 | 0.503 | 0.513 |
 
 ## GitHub runners
 
@@ -50,5 +56,5 @@ kernels have not changed since). The runners are shared VMs: a few percent is no
 
 Where the CPU has SHA instructions the hardware kernel is within 1% of EVP on 64 MiB (4.5% ahead on
 the M1 runner, 6% behind with GCC on Neoverse-N2) and faster on 64 B, where EVP's per-call
-overhead dominates. Without them the portable kernel is 1.6x to 2.1x slower than EVP's vectorized
+overhead dominates. Without them the portable kernel is 1.6x to 2.2x slower than EVP's vectorized
 assembly.

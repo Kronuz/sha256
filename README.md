@@ -16,7 +16,7 @@ checks without linking OpenSSL.
 - **One call or streaming.** `kronuz::sha256::digest("abc")`, or `update()` in chunks and
   `final()`; the `SHA256` class (`add()`, `getHash()`) keeps Xapiand's interface.
 - **Hardware speed, one binary.** The SHA-NI and ARMv8 kernels are detected at first use. On the
-  CI runners below they run within 1% of OpenSSL EVP on bulk data (6% behind with GCC on
+  CI runners below they run within about 1% of OpenSSL EVP on bulk data (6% behind with GCC on
   Neoverse-N2) and ahead of it on 64-byte messages.
 - **No clash with OpenSSL.** The namespaced API compiles next to `<openssl/sha.h>`, whose global
   `SHA256()` hides the class of the same name.
@@ -86,48 +86,54 @@ Not for:
 - Passwords, signatures, or MACs: use a reviewed cryptography library, with HMAC or a password
   hash. This implementation is not hardened against side channels.
 - Bulk hashing on x86_64 without SHA-NI (Intel cores before Ice Lake; every AMD Zen has it): the
-  portable kernel is about 2.2x slower than OpenSSL's vectorized assembly there.
+  portable kernel is about 2x slower than OpenSSL's vectorized assembly there.
 
 ## ⚡ Performance
 
-GB/s (1e9 bytes/s), one thread, best of five, from `sha256_bench` in a Release build against
-OpenSSL EVP (`EVP_DigestInit_ex`/`Update`/`Final_ex` on a reused context). 64 B is a one-shot
-digest of a cache-hot message, padding and final block included; 64 MiB is one digest. GitHub's
-runners are shared VMs, so treat a few percent as noise; EVP in the same run is the reference.
+GB/s (1e9 bytes/s) to hash one message on one thread, from `sha256_bench`: the best of five passes
+in a Release build. *sha256* is this library on the kernel its CPU selects: `armv8` (the arm64 SHA2
+instructions) or `sha-ni` (the x86-64 SHA extensions). *Portable* is this library's plain C++
+rounds, forced with `force_kernel`, and the only kernel on a CPU with neither. *OpenSSL EVP* is
+`EVP_DigestInit_ex`, `EVP_DigestUpdate` and `EVP_DigestFinal_ex` on a reused context from the
+[OpenSSL](https://github.com/openssl/openssl) named in the first column. The bench checks that all
+three return the same digests. A 64 B message is one cache-hot digest, padding included; 64 MiB is
+one digest of a large buffer. The last column is sha256's throughput over EVP's, so above 1 is
+faster than OpenSSL. The M4 Pro row is a laptop run on `main`; the other rows are GitHub's shared
+runners from the bench jobs of [CI run 41331989169](https://github.com/Kronuz/sha256/actions/runs/41331989169),
+whose kernels are the ones in this tree, so a few percent is noise.
 
-| Host (compiler, OpenSSL) | Kernel | 64 B | 64 MiB | EVP 64 B | EVP 64 MiB | Portable 64 MiB |
-|---|---|---:|---:|---:|---:|---:|
-| AMD EPYC 9V74, Linux runner (GCC 13.3, 3.0.13) | sha-ni | **0.474** | **1.409** | 0.417 | 1.407 | 0.274 |
-| Intel Xeon Platinum 8370C, Linux runner (GCC 13.3, 3.0.13) | sha-ni | **0.454** | **1.314** | 0.382 | 1.307 | 0.221 |
-| Neoverse-N2, Linux arm64 runner (Clang 18.1, 3.0.13) | armv8 | **1.090** | **2.166** | 0.464 | 2.165 | 0.408 |
-| Neoverse-N2, Linux arm64 runner (GCC 13.3, 3.0.13) | armv8 | **0.755** | **2.043** | 0.464 | 2.163 | 0.387 |
-| Apple M1 (Virtual), macOS runner (Apple clang 17, 3.6.4) | armv8 | **1.167** | **2.263** | 0.926 | 2.284 | 0.277 |
-| Intel Core i7-8700B, macOS runner, no SHA-NI (Apple clang 17, 3.6.3) | portable | 0.083 | 0.238 | 0.125 | 0.498 | 0.238 |
-| Intel Core i9-9980HK, MacBook Pro, no SHA-NI (Apple clang 17, 4.0.3) | portable | 0.114 | 0.242 | 0.200 | 0.536 | 0.242 |
+| Machine, compiler, OpenSSL | Kernel | Message | sha256 | Portable | OpenSSL EVP | sha256 ÷ EVP |
+|---|---|---|---:|---:|---:|---:|
+| Apple M4 Pro, Apple clang 17, [3.5.9](https://github.com/openssl/openssl/tree/openssl-3.5.9) | armv8 | 64 B | 1.783 | 0.246 | 1.519 | 1.17 |
+| | | 64 MiB | 2.980 | 0.506 | 3.012 | 0.99 |
+| AMD EPYC 7763, GCC 13.3, [3.0.13](https://github.com/openssl/openssl/tree/openssl-3.0.13) | sha-ni | 64 B | 0.531 | 0.114 | 0.417 | 1.27 |
+| | | 64 MiB | 1.586 | 0.258 | 1.587 | 1.00 |
+| Neoverse-N2, Clang 18.1, 3.0.13 | armv8 | 64 B | 1.082 | 0.194 | 0.464 | 2.33 |
+| | | 64 MiB | 2.167 | 0.408 | 2.166 | 1.00 |
+| Intel Core i7-8700B (no SHA-NI), Apple clang 17, [3.6.3](https://github.com/openssl/openssl/tree/openssl-3.6.3) | portable | 64 B | 0.082 | 0.082 | 0.131 | 0.63 |
+| | | 64 MiB | 0.175 | 0.175 | 0.360 | 0.49 |
 
-On SHA-NI and ARMv8 cores the hardware kernel is 5.1x to 8.2x faster than the portable one on
-64 MiB and within 1% of EVP there (GCC on Neoverse-N2: EVP 1.06x faster), and 1.1x to 2.3x faster
-than EVP on 64-byte messages, where EVP's per-call overhead dominates. Without SHA instructions
-EVP's vectorized assembly is 2.1x to 2.2x faster than the portable kernel.
+On SHA-NI and ARMv8 the hardware kernel is 5.3x to 9.5x faster than the portable one on 64 MiB,
+within about 1% of EVP on bulk data (4.5% ahead on the M1 runner, 6% behind with GCC on
+Neoverse-N2) and 1.2x to 2.3x faster on 64-byte messages, where EVP's per-call overhead dominates. A CPU without SHA instructions
+runs the portable kernel, and there EVP's vectorized assembly is 1.6x to 2.1x faster. [docs/perf/](docs/perf/README.md)
+has 4 KiB messages and the other runners.
 
 ```sh
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DSHA256_BUILD_BENCHMARKS=ON
 cmake --build build && ./build/sha256_bench
 ```
 
-The bench also prints 4 KiB digests. With several OpenSSLs installed (Homebrew's `openssl@3` and
-`openssl@4`), set `OPENSSL_ROOT_DIR` so the headers and the library come from the same one; the
-bench prints the header's version. CI's `bench-*` jobs print the same table, with the runner's
-CPU, on every manual run; the runner rows above come from runs 39356786780 and 39356305207 (the
-Xeon row), whose kernels match this tree.
-
-`SHA256` on a 16-byte input, hex string included, takes about 60 ns on an Apple M4 Pro (`-O3`);
-`sha256_hex_bench`, built by the same option, measures it.
+With several OpenSSLs installed (Homebrew's `openssl@3` and `openssl@4`), set `OPENSSL_ROOT_DIR`
+so the headers and the library come from the same one; the bench prints the version of the library
+that runs. `SHA256` on a 16-byte input, hex string included, takes 62 ns on the M4 Pro
+(`sha256_hex_bench`, built by the same option).
 
 ## 📚 Documentation
 
 - [docs/API.md](docs/API.md): the `SHA256` class and `kronuz::sha256`.
 - [ARCHITECTURE.md](ARCHITECTURE.md): buffering, the kernels and their dispatch, and finalization.
+- [docs/perf/README.md](docs/perf/README.md): every kernel and message size, on the laptop and the CI runners.
 - [CHANGELOG.md](CHANGELOG.md): dated changes.
 - [AGENTS.md](AGENTS.md): repository map and invariants.
 - [Catalog entry](https://github.com/Kronuz/cpp-libraries/blob/main/AGENTS.md#sha256) in Kronuz C++

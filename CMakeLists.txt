@@ -11,7 +11,7 @@ include(FetchContent)
 FetchContent_Declare(
   endian
   GIT_REPOSITORY https://github.com/Kronuz/endian.git
-  GIT_TAG        f6269f09da90bb3713018792003f01a67749b00c
+  GIT_TAG        8db745f5ccbf9b5c176bec27f900d64cf105c4c0
 )
 FetchContent_MakeAvailable(endian)
 

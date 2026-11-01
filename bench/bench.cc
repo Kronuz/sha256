@@ -120,7 +120,10 @@ int main(int argc, char** argv) {
 #else
 	evp_md = EVP_sha256();
 #endif
-	evp_version = OPENSSL_VERSION_TEXT;
+	// The library that runs, not the header that compiled: a stray older or newer openssl/ on the
+	// include path would otherwise name the wrong version.
+	evp_version = OpenSSL_version(OPENSSL_VERSION);
+	if (evp_version != OPENSSL_VERSION_TEXT) { evp_version += std::string(" (headers: ") + OPENSSL_VERSION_TEXT + ")"; }
 	columns.push_back({"openssl evp", run_evp, sha::kernel::portable, false});
 #endif
 

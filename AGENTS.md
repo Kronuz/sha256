@@ -122,8 +122,9 @@ guarantees; it is the fast, stable fingerprint Xapiand reaches for.
   of the library must run on a baseline CPU. Keep `sha256_arm.cc` free of standard
   headers whose inline functions could be emitted with the wider instruction set.
 - **This Mac (i9-9980HK) has no SHA-NI and is not arm64.** Local tests prove the
-  portable kernel only; hardware kernels are proven by CI. `.scratch/shani-emu`
-  (untracked) shows how to run the SHA-NI kernel with emulated instructions.
+  portable kernel only; hardware kernels are proven by CI. A scratch harness that
+  emulates the SHA instructions can run the SHA-NI kernel here; it is not in the
+  repository.
 
 - **Don't reimplement the byte swap locally.** It comes from `endian.hh` via the
   `__BYTE_ORDER` / `__LITTLE_ENDIAN` / `__BIG_ENDIAN` macros. Keep it coming from

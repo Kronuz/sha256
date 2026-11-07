@@ -3,7 +3,7 @@
 // Each kernel is forced in turn and checked against the FIPS 180-4 / NIST SHAVS
 // vectors (short, the 448- and 896-bit messages, a million 'a'), streaming splits
 // at every boundary through both APIs, and the portable kernel's digests of random
-// inputs at random offsets and splits. Set SHA256_EXPECT_KERNEL=sha-ni (or armv8)
+// inputs at random offsets and splits. Set SHA256_EXPECT_KERNEL=sha-ni (or avx2, armv8)
 // to fail when that kernel is unavailable.
 //
 // Build via CMake: cmake -B build && cmake --build build && ctest --test-dir build
@@ -210,7 +210,7 @@ void check_hooks(sha::kernel detected) {
 	CHECK(sha::kernel_available(sha::kernel::portable));
 	CHECK(sha::force_kernel(sha::kernel::portable));
 	CHECK(sha::active_kernel() == sha::kernel::portable);
-	for (sha::kernel k : {sha::kernel::sha_ni, sha::kernel::armv8}) {
+	for (sha::kernel k : sha::kernels) {
 		if (!sha::kernel_available(k)) {
 			CHECK(!sha::force_kernel(k));
 			CHECK(sha::active_kernel() == sha::kernel::portable);
@@ -231,7 +231,7 @@ int main() {
 	const auto cases = reference_cases();
 
 	int ran = 0;
-	for (sha::kernel k : {sha::kernel::portable, sha::kernel::sha_ni, sha::kernel::armv8}) {
+	for (sha::kernel k : sha::kernels) {
 		current = sha::kernel_name(k);
 		if (!sha::force_kernel(k)) {
 			std::printf("kernel %-8s unavailable here, skipped\n", current);
@@ -251,7 +251,7 @@ int main() {
 
 	if (const char* expect = std::getenv("SHA256_EXPECT_KERNEL"); expect && *expect) {
 		bool found = false;
-		for (sha::kernel k : {sha::kernel::portable, sha::kernel::sha_ni, sha::kernel::armv8}) {
+		for (sha::kernel k : sha::kernels) {
 			if (std::string_view(expect) == sha::kernel_name(k)) found = sha::kernel_available(k);
 		}
 		current = expect;

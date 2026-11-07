@@ -44,6 +44,8 @@ void compress_portable(std::uint32_t state[8], const unsigned char* data, std::s
 #if defined(SHA256_HAVE_SHANI)
 bool shani_supported() noexcept;
 void compress_shani(std::uint32_t state[8], const unsigned char* data, std::size_t blocks) noexcept;
+bool avx2_supported() noexcept;
+void compress_avx2(std::uint32_t state[8], const unsigned char* data, std::size_t blocks) noexcept;
 #endif
 
 #if defined(SHA256_HAVE_ARMV8)

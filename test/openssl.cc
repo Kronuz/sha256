@@ -20,7 +20,7 @@ int main() {
 		b = static_cast<unsigned char>(x >> 56);
 	}
 	int failures = 0, kernels = 0;
-	for (sha::kernel k : {sha::kernel::portable, sha::kernel::sha_ni, sha::kernel::armv8}) {
+	for (sha::kernel k : sha::kernels) {
 		if (!sha::force_kernel(k)) continue;
 		++kernels;
 		for (std::size_t n = 0; n < data.size(); n = n < 300 ? n + 1 : n * 3 / 2) {

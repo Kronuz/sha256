@@ -11,7 +11,7 @@ easy to fall into.
 sha256.h                     The SHA256 class (Xapiand's interface) and the kronuz::sha256 API: hasher, digest(), to_hex(), the kernel queries and the force_kernel()/reset_kernel() hook.
 sha256_kernels.hh            Internal: kernel signature, round constants, compress() dispatch, absorb()/finish(). Not for consumers.
 sha256.cc                    Portable kernel (Xapiand's round function), shared buffering and padding, dispatch, both front ends. Includes "endian.hh" for the byte-order macros.
-sha256_x86.cc                SHA-NI kernel and CPUID check; empty unless x86_64.
+sha256_x86.cc                SHA-NI and AVX2 kernels and their CPUID checks; empty unless x86_64.
 sha256_arm.cc                ARMv8 SHA2 kernel and HWCAP/sysctl check; empty unless arm64.
 test/test.cc                 The SHA256 class: published vectors, multi-block, block boundary, memory block, streaming, raw bytes, reuse, padding lengths, unaligned input.
 test/kernels.cc              Every kernel the host has, forced in turn: NIST vectors, every split, 3000 random cases vs portable, the hook.
@@ -44,7 +44,7 @@ The first configure fetches `endian` over the network (FetchContent, pinned).
 detected kernel, one line per kernel tested or skipped, and ends with `all sha256
 kernel tests passed (N kernels)`. A host without SHA-NI or SHA2 tests the portable
 kernel only, so read CI's logs (the `bench-*` jobs print the CPU and the kernels) to
-know a hardware kernel ran. `SHA256_EXPECT_KERNEL=sha-ni` (or `armv8`) makes the
+know a hardware kernel ran. `SHA256_EXPECT_KERNEL=sha-ni` (or `avx2`, `armv8`) makes the
 kernel test fail when that kernel is unavailable.
 
 ```sh
@@ -102,7 +102,7 @@ guarantees; it is the fast, stable fingerprint Xapiand reaches for.
   `force_kernel()` safe mid-stream and lets both front ends share `absorb()`.
 - **A hardware kernel runs only after its check.** `kernel_fn()` returns a kernel
   pointer only when the build has it and the CPU reports it; `compress()` never
-  returns anything else. Never call `compress_shani`/`compress_armv8` directly.
+  returns anything else. Never call `compress_shani`/`compress_avx2`/`compress_armv8` directly.
 - **Detection runs once.** `compress()` is one relaxed atomic load; don't put
   CPUID or `getauxval` on the per-update path.
 - **The portable round function's text matches Xapiand's**, with `m_hash` as a
@@ -116,13 +116,13 @@ guarantees; it is the fast, stable fingerprint Xapiand reaches for.
 
 ## Traps
 
-- **Instruction-set flags stay on the kernel functions.** SHA-NI uses a
-  per-function `target(...)` attribute; the ARMv8 file gets `-march=armv8-a+crypto`
+- **Instruction-set flags stay on the kernel functions.** SHA-NI and AVX2 use a
+  per-function `target(...)` attribute (AVX2's helpers carry it too); the ARMv8 file gets `-march=armv8-a+crypto`
   only on Linux/FreeBSD toolchains. Don't move either to the whole target: the rest
   of the library must run on a baseline CPU. Keep `sha256_arm.cc` free of standard
   headers whose inline functions could be emitted with the wider instruction set.
 - **This Mac (i9-9980HK) has no SHA-NI and is not arm64.** Local tests prove the
-  portable kernel only; hardware kernels are proven by CI. A scratch harness that
+  portable and AVX2 kernels; SHA-NI and ARMv8 are proven by CI. A scratch harness that
   emulates the SHA instructions can run the SHA-NI kernel here; it is not in the
   repository.
 

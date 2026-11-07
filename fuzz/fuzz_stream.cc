@@ -18,7 +18,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
 	sha::force_kernel(sha::kernel::portable);
 	const sha::digest_type expected = sha::digest(msg, n);
 
-	for (sha::kernel k : {sha::kernel::portable, sha::kernel::sha_ni, sha::kernel::armv8}) {
+	for (sha::kernel k : sha::kernels) {
 		if (!sha::force_kernel(k)) continue;
 		if (sha::digest(msg, n) != expected) std::abort();
 

@@ -7,15 +7,15 @@ Part of [Kronuz C++ Libraries](https://github.com/Kronuz/cpp-libraries), a colle
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)
 
 SHA-256 for C++20: one call or streaming, hex or raw digest, on the CPU's SHA instructions when it
-has them. Blocks run on SHA-NI on x86_64 and the SHA2 extension on arm64, picked once at run time,
-and on portable C++ otherwise. Reach for it for content addressing, deduplication and integrity
+has them. Blocks run on SHA-NI on x86_64 and the SHA2 extension on arm64, on AVX2 on x86_64 cores
+without SHA-NI, picked once at run time, and on portable C++ otherwise. Reach for it for content addressing, deduplication and integrity
 checks without linking OpenSSL.
 
 ## ✨ Highlights
 
 - **One call or streaming.** `kronuz::sha256::digest("abc")`, or `update()` in chunks and
   `final()`; the `SHA256` class (`add()`, `getHash()`) keeps Xapiand's interface.
-- **Hardware speed, one binary.** The SHA-NI and ARMv8 kernels are detected at first use. On the
+- **Hardware speed, one binary.** The SHA-NI, AVX2 and ARMv8 kernels are detected at first use. On the
   CI runners below they run within about 1% of OpenSSL EVP on bulk data (6% behind with GCC on
   Neoverse-N2) and ahead of it on 64-byte messages.
 - **No clash with OpenSSL.** The namespaced API compiles next to `<openssl/sha.h>`, whose global
@@ -44,7 +44,7 @@ int main() {
 	std::puts(sha::to_hex(h.final()).c_str());  // the same as hashing "hello, world" at once
 	// 09ca7e4eaa6e8ae9c7d261167129184883644d07dfba7cbfbc4c8a2e08360d5b
 
-	std::puts(sha::kernel_name(sha::active_kernel()));  // "sha-ni", "armv8" or "portable"
+	std::puts(sha::kernel_name(sha::active_kernel()));  // "sha-ni", "avx2", "armv8" or "portable"
 
 	SHA256 sha256;  // the Xapiand-compatible class, same digests
 	std::puts(sha256(std::string_view("abc")).c_str());
@@ -86,19 +86,20 @@ Not for:
 - Passwords, signatures, or MACs: use a reviewed cryptography library, with HMAC or a password
   hash. This implementation is not hardened against side channels.
 - Bulk hashing on x86_64 without SHA-NI (Intel cores before Ice Lake; every AMD Zen has it): the
-  portable kernel is about 2x slower than OpenSSL's vectorized assembly there.
+  AVX2 kernel is 1.6x the portable one there, but OpenSSL's assembly is still about 1.3x faster.
 
 ## ⚡ Performance
 
 GB/s (1e9 bytes/s) to hash one message on one thread, from `sha256_bench`: the best of five passes
 in a Release build. *sha256* is this library on the kernel its CPU selects: `armv8` (the arm64 SHA2
-instructions) or `sha-ni` (the x86-64 SHA extensions). *Portable* is this library's plain C++
-rounds, forced with `force_kernel`, and the only kernel on a CPU with neither. *OpenSSL EVP* is
+instructions), `sha-ni` (the x86-64 SHA extensions) or `avx2` (x86-64 without SHA-NI). *Portable*
+is this library's plain C++ rounds, forced with `force_kernel`, and the only kernel on a CPU with
+none of them. *OpenSSL EVP* is
 `EVP_DigestInit_ex`, `EVP_DigestUpdate` and `EVP_DigestFinal_ex` on a reused context from the
 [OpenSSL](https://github.com/openssl/openssl) named in the first column. The bench checks that all
 three return the same digests. A 64 B message is one cache-hot digest, padding included; 64 MiB is
 one digest of a large buffer. The last column is sha256's throughput over EVP's, so above 1 is
-faster than OpenSSL. The M4 Pro row is a laptop run on `main`; the other rows are GitHub's shared
+faster than OpenSSL. The M4 Pro and i9-9980HK rows are laptop runs on `main`; the other rows are GitHub's shared
 runners from the bench jobs of [CI run 41331989169](https://github.com/Kronuz/sha256/actions/runs/41331989169),
 whose kernels are the ones in this tree, so a few percent is noise.
 
@@ -106,8 +107,8 @@ whose kernels are the ones in this tree, so a few percent is noise.
 |---|---|---|---:|---:|---:|---:|
 | Apple M4 Pro, Apple clang 17, [3.5.9](https://github.com/openssl/openssl/tree/openssl-3.5.9) | armv8 | 64 B | 1.783 | 0.246 | 1.519 | 1.17 |
 | | | 64 MiB | 2.980 | 0.506 | 3.012 | 0.99 |
-| Intel Core i9-9980HK (no SHA-NI), Apple clang 17, [3.6.5](https://github.com/openssl/openssl/tree/openssl-3.6.5) | portable | 64 B | 0.114 | 0.114 | 0.187 | 0.61 |
-| | | 64 MiB | 0.234 | 0.234 | 0.513 | 0.46 |
+| Intel Core i9-9980HK (no SHA-NI), Apple clang 17, [3.6.5](https://github.com/openssl/openssl/tree/openssl-3.6.5) | avx2 | 64 B | 0.132 | 0.098 | 0.158 | 0.84 |
+| | | 64 MiB | 0.352 | 0.216 | 0.463 | 0.76 |
 | AMD EPYC 7763, GCC 13.3, [3.0.13](https://github.com/openssl/openssl/tree/openssl-3.0.13) | sha-ni | 64 B | 0.531 | 0.114 | 0.417 | 1.27 |
 | | | 64 MiB | 1.586 | 0.258 | 1.587 | 1.00 |
 | Neoverse-N2, Clang 18.1, [3.0.13](https://github.com/openssl/openssl/tree/openssl-3.0.13) | armv8 | 64 B | 1.082 | 0.194 | 0.464 | 2.33 |
@@ -118,7 +119,9 @@ whose kernels are the ones in this tree, so a few percent is noise.
 On SHA-NI and ARMv8 the hardware kernel is 5.3x to 9.5x faster than the portable one on 64 MiB,
 within about 1% of EVP on bulk data (4.5% ahead on the M1 runner, 6% behind with GCC on
 Neoverse-N2) and 1.2x to 2.3x faster on 64-byte messages, where EVP's per-call overhead dominates. A CPU without SHA instructions
-runs the portable kernel, and there EVP's vectorized assembly is 1.6x to 2.2x faster. [docs/perf/](docs/perf/README.md)
+runs AVX2 on x86_64 (1.3x to 1.6x the portable kernel, still 1.2x to 1.4x behind EVP) or the
+portable kernel, which EVP's vectorized assembly beats by 1.6x to 2.2x. The i7-8700B runner row
+predates the AVX2 kernel. [docs/perf/](docs/perf/README.md)
 has 4 KiB messages and the other runners.
 
 ```sh
@@ -152,8 +155,8 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DSHA256_BUILD_BENCHMARKS=ON && cmake 
 
 CTest runs `sha256` (the class), `sha256_kernels` (every kernel the host has, plus the forced
 portable fallback) and, when CMake finds OpenSSL, `sha256_openssl` (both headers in one file,
-digests against OpenSSL's `SHA256()`). A host without SHA instructions tests the portable kernel
-only; CI covers SHA-NI and ARMv8.
+digests against OpenSSL's `SHA256()`). A host without SHA instructions tests the portable kernel,
+plus AVX2 where it has it; CI covers SHA-NI and ARMv8.
 
 ## 🤝 Contributing
 

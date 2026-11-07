@@ -13,7 +13,7 @@ A public header, an internal one, and three compiled files:
   sha256.h           the SHA256 class and the kronuz::sha256 API (hasher, digest, kernels)
   sha256_kernels.hh  internal: kernel signatures, round constants, dispatch, absorb/finish
   sha256.cc          portable kernel, buffering, padding, dispatch, both front ends
-  sha256_x86.cc      the SHA-NI kernel and its CPUID check (x86_64 only)
+  sha256_x86.cc      the SHA-NI and AVX2 kernels and their CPUID checks (x86_64 only)
   sha256_arm.cc      the ARMv8 SHA2 kernel and its feature check (arm64 only)
 ```
 
@@ -48,6 +48,16 @@ eight hash words, once per block.
   function carries `target("sha,sse4.1,ssse3")`, so the rest of the library stays
   baseline x86_64. It runs only when CPUID leaf 1 ECX reports SSSE3 (bit 9) and
   SSE4.1 (bit 19) and leaf 7 EBX reports SHA (bit 29).
+- **AVX2** (`sha256_x86.cc`), for x86_64 cores without SHA-NI. Each 128-bit lane of
+  a 256-bit register extends one block's message schedule, so one pass schedules
+  two blocks. The vector schedule runs interleaved with the first block's scalar
+  rounds, which use BMI2 `rorx` for the rotates; the second block's rounds read
+  the stored K+W words. A lone last block shares the pass with a copy of itself
+  and its second set of rounds is skipped. The rounds are latency-bound, so the
+  kernel reaches 1.6x the portable one, not EVP's speed. The function carries
+  `target("avx2,bmi2")`. It runs when CPUID leaf 1 ECX reports OSXSAVE (bit 27)
+  and AVX (bit 28), XCR0 enables XMM and YMM state, and leaf 7 EBX reports AVX2
+  (bit 5) and BMI2 (bit 8). Detection prefers SHA-NI when both are present.
 - **ARMv8 SHA2** (`sha256_arm.cc`). `vsha256hq`/`vsha256h2q` run four rounds on
   ABCD and EFGH; `vsha256su0q`/`vsha256su1q` extend the schedule. Apple's and
   MSVC's toolchains enable the extension by default; on Linux and FreeBSD CMake
@@ -112,4 +122,4 @@ OpenSSL's headers use this library too.
 
 Padding writes only into `finish()`'s fixed 128-byte scratch block at offsets computed from the buffered count, so no intermediate pointer leaves it; the caller's buffer and the class's own are read, never padded in place.
 
-Input storage belongs to the caller and can be unaligned or contain byte objects rather than `uint32_t` objects. The portable kernel loads each initial word with a fixed-size `memcpy` into a local integer; the hardware kernels use unaligned vector loads (`_mm_loadu_si128`, `vld1q_u8`). Optimizing compilers fold the copy into the appropriate load. The offset and streaming fixtures hash buffers that start one to fifteen bytes past an aligned address, under UBSan.
+Input storage belongs to the caller and can be unaligned or contain byte objects rather than `uint32_t` objects. The portable kernel loads each initial word with a fixed-size `memcpy` into a local integer; the vector kernels use unaligned vector loads (`_mm_loadu_si128`, `vld1q_u8`). Optimizing compilers fold the copy into the appropriate load. The offset and streaming fixtures hash buffers that start one to fifteen bytes past an aligned address, under UBSan.

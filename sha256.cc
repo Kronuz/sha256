@@ -446,6 +446,8 @@ compress_fn kernel_fn(kernel k) noexcept
 #if defined(SHA256_HAVE_SHANI)
 		case kernel::sha_ni:
 			return shani_supported() ? compress_shani : nullptr;
+		case kernel::avx2:
+			return avx2_supported() ? compress_avx2 : nullptr;
 #endif
 #if defined(SHA256_HAVE_ARMV8)
 		case kernel::armv8:
@@ -460,7 +462,7 @@ compress_fn kernel_fn(kernel k) noexcept
 
 compress_fn detect() noexcept
 {
-	for (kernel k : {kernel::sha_ni, kernel::armv8})
+	for (kernel k : {kernel::sha_ni, kernel::armv8, kernel::avx2})
 	{
 		if (compress_fn fn = kernel_fn(k))
 		{
@@ -554,6 +556,10 @@ kernel active_kernel() noexcept
 	{
 		return kernel::sha_ni;
 	}
+	if (fn == detail::compress_avx2)
+	{
+		return kernel::avx2;
+	}
 #endif
 #if defined(SHA256_HAVE_ARMV8)
 	if (fn == detail::compress_armv8)
@@ -579,6 +585,7 @@ const char* kernel_name(kernel k) noexcept
 		case kernel::portable: return "portable";
 		case kernel::sha_ni: return "sha-ni";
 		case kernel::armv8: return "armv8";
+		case kernel::avx2: return "avx2";
 	}
 	return "unknown";
 }

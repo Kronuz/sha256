@@ -3,8 +3,8 @@
 `sha256_bench` prints GB/s (1e9 bytes/s) for every kernel the host can run and for OpenSSL EVP
 (`EVP_DigestInit_ex`, `EVP_DigestUpdate`, `EVP_DigestFinal_ex` on a reused context), one thread,
 the best of five passes, in a Release build. *sha256 portable* is this library's plain C++ rounds;
-*sha256 armv8* and *sha256 sha-ni* are the arm64 SHA2 and x86-64 SHA-NI kernels (the one the CPU
-selects is named in the first line of the output). The 64 B column is one cache-hot digest, padding
+*sha256 armv8*, *sha256 sha-ni* and *sha256 avx2* are the arm64 SHA2, x86-64 SHA-NI and x86-64
+AVX2 kernels (the one the CPU selects is named in the first line of the output). The 64 B column is one cache-hot digest, padding
 included, repeated for 64 MiB in total; 64 MiB is one digest of a large buffer. The bench checks that
 the digests of every column agree.
 
@@ -27,8 +27,9 @@ Intel Core i9-9980HK (no SHA-NI), macOS 15, Apple clang 17, `-O3`, linked with H
 
 | Implementation | 64 B | 4 KiB | 64 MiB |
 |---|---:|---:|---:|
-| sha256 portable | 0.114 | 0.233 | 0.234 |
-| OpenSSL EVP | 0.187 | 0.503 | 0.513 |
+| sha256 portable | 0.098 | 0.213 | 0.216 |
+| sha256 avx2 | 0.132 | 0.333 | 0.352 |
+| OpenSSL EVP | 0.158 | 0.453 | 0.463 |
 
 ## GitHub runners
 
@@ -56,5 +57,6 @@ kernels have not changed since). The runners are shared VMs: a few percent is no
 
 Where the CPU has SHA instructions the hardware kernel is within 1% of EVP on 64 MiB (4.5% ahead on
 the M1 runner, 6% behind with GCC on Neoverse-N2) and faster on 64 B, where EVP's per-call
-overhead dominates. Without them the portable kernel is 1.6x to 2.2x slower than EVP's vectorized
-assembly.
+overhead dominates. Without them the AVX2 kernel is 1.3x to 1.6x the portable one and 1.2x to 1.4x
+behind EVP; the portable kernel is 1.6x to 2.2x slower than EVP's vectorized assembly. The
+i7-8700B runner row predates the AVX2 kernel.

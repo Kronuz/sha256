@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
 		bool kronuz;
 	};
 	std::vector<Column> columns;
-	for (sha::kernel k : {sha::kernel::portable, sha::kernel::sha_ni, sha::kernel::armv8}) {
+	for (sha::kernel k : sha::kernels) {
 		if (sha::kernel_available(k)) columns.push_back({std::string("kronuz ") + sha::kernel_name(k), run_kronuz, k, true});
 	}
 	std::string evp_version = "not built";

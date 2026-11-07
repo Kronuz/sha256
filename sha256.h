@@ -134,13 +134,15 @@ inline digest_type digest(std::string_view text) noexcept { return digest(text.d
 /// 64 lowercase hex characters
 std::string to_hex(const digest_type& digest);
 
-enum class kernel : unsigned char { portable, sha_ni, armv8 };
+enum class kernel : unsigned char { portable, sha_ni, armv8, avx2 };
+/// every kernel, in enum order; kernel_available() says which can run here
+inline constexpr kernel kernels[] = {kernel::portable, kernel::sha_ni, kernel::armv8, kernel::avx2};
 
 /// the kernel that hashes now
 kernel active_kernel() noexcept;
 /// whether this build and CPU can run `k`
 bool kernel_available(kernel k) noexcept;
-/// "portable", "sha-ni" or "armv8"
+/// "portable", "sha-ni", "armv8" or "avx2"
 const char* kernel_name(kernel k) noexcept;
 
 /// Test and benchmark hook: pin a kernel process-wide; false (and no change)

@@ -51,7 +51,8 @@ namespace kronuz::sha256 {
 	digest_type digest(std::string_view text) noexcept;
 	std::string to_hex(const digest_type& digest);
 
-	enum class kernel : unsigned char { portable, sha_ni, armv8 };
+	enum class kernel : unsigned char { portable, sha_ni, armv8, avx2 };
+	inline constexpr kernel kernels[] = {kernel::portable, kernel::sha_ni, kernel::armv8, kernel::avx2};
 	kernel      active_kernel() noexcept;
 	bool        kernel_available(kernel k) noexcept;
 	const char* kernel_name(kernel k) noexcept;
@@ -67,8 +68,10 @@ namespace kronuz::sha256 {
   `init()` starts a new one.
 - `digest(data, size)`: one-shot; `to_hex()` renders 64 lowercase hex characters.
 - `active_kernel()`: the kernel blocks run through now. Detection runs once, on
-  first use: SHA-NI on x86_64 when CPUID reports SHA, SSSE3 and SSE4.1; the SHA2
-  extension on arm64; the portable C++ rounds otherwise.
+  first use: SHA-NI on x86_64 when CPUID reports SHA, SSSE3 and SSE4.1; else AVX2
+  when CPUID reports AVX2 and BMI2 and the OS saves YMM state; the SHA2 extension
+  on arm64; the portable C++ rounds otherwise. `kernels` lists every kernel, for
+  loops over `kernel_available()`.
 - `force_kernel(k)`: a test and benchmark hook that pins `k` process-wide; it
   returns `false` and changes nothing when `k` is not available in this build or
   on this CPU. `reset_kernel()` returns to the detected kernel. Every kernel

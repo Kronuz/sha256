@@ -136,6 +136,8 @@ that runs. `SHA256` on a 16-byte input, hex string included, takes 62 ns on the 
 
 ## 📚 Documentation
 
+- [The Bag of Holding](https://kronuz.github.io/blog/bag-of-holding/):
+  the Familiars post that covers `sha256` among the small helpers.
 - [docs/API.md](docs/API.md): the `SHA256` class and `kronuz::sha256`.
 - [ARCHITECTURE.md](ARCHITECTURE.md): buffering, the kernels and their dispatch, and finalization.
 - [docs/perf/README.md](docs/perf/README.md): every kernel and message size, on the laptop and the CI runners.
